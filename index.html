@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>html{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>EMS Baterie PZU</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: control-room console. Narrow parameter rail on the left, results column on the right; stacks on phones. */
+:root{
+  --bg:#eef1ef; --panel:#fbfcfb; --ink:#14211d; --muted:#5b6a65; --line:#d3dbd7;
+  --charge:#2557c7; --discharge:#d97b10; --soc:#0f8a76; --idle:#a9b5b0;
+  --good:#1d7f4e; --bad:#b4372d; --accent:#0f8a76; --chip:#e3e9e6;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1614; --panel:#16201d; --ink:#e3ebe8; --muted:#93a39e; --line:#2a3733;
+  --charge:#6f97f2; --discharge:#f0a24a; --soc:#3cc4a9; --idle:#4b5a55;
+  --good:#4cc488; --bad:#ec7b70; --accent:#3cc4a9; --chip:#22302c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1614; --panel:#16201d; --ink:#e3ebe8; --muted:#93a39e; --line:#2a3733;
+  --charge:#6f97f2; --discharge:#f0a24a; --soc:#3cc4a9; --idle:#4b5a55;
+  --good:#4cc488; --bad:#ec7b70; --accent:#3cc4a9; --chip:#22302c; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45}
+.wrap{max-width:1380px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;padding-bottom:16px;border-bottom:2px solid var(--ink);margin-bottom:20px}
+header.top h1{font-family:var(--f-display);font-weight:700;font-size:clamp(28px,4vw,40px);letter-spacing:.01em;margin:0;line-height:1;text-wrap:balance}
+header.top h1 small{display:block;font-family:var(--f-body);font-weight:500;font-size:14px;color:var(--muted);letter-spacing:0;margin-top:6px}
+.tag{font-family:var(--f-mono);font-size:12px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap}
+.tag span{background:var(--chip);padding:3px 8px;border-radius:3px}
+.tag span.warn{color:var(--discharge)}
+
+.grid{display:grid;grid-template-columns:330px minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:980px){.grid{grid-template-columns:minmax(0,1fr)}}
+
+aside{display:flex;flex-direction:column;gap:14px}
+fieldset{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:12px 14px 14px;margin:0;min-width:0}
+legend{font-family:var(--f-display);font-weight:600;font-size:15px;text-transform:uppercase;letter-spacing:.08em;padding:0 6px;color:var(--muted)}
+.row{display:grid;grid-template-columns:1fr 112px;gap:8px;align-items:center;margin-top:8px}
+.row label{font-size:13.5px;color:var(--ink)}
+.row label em{font-style:normal;color:var(--muted);font-size:12px}
+input[type=number],select,textarea{font-family:var(--f-mono);font-size:13px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:6px 8px;width:100%}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+textarea{min-height:90px;resize:vertical}
+.chk{display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13.5px}
+button{font-family:var(--f-body);font-weight:600;font-size:13.5px;border:1px solid var(--ink);background:var(--panel);color:var(--ink);border-radius:4px;padding:7px 12px;cursor:pointer}
+button.primary{background:var(--ink);color:var(--panel)}
+button:hover{border-color:var(--accent)}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.note{font-size:12.5px;color:var(--muted);margin:8px 0 0}
+.ttable{width:100%;border-collapse:collapse;margin-top:6px;font-size:13px}
+.ttable td{padding:4px 0;vertical-align:middle;border-bottom:1px dotted var(--line)}
+.ttable td:first-child{width:22px}
+.ttable td:last-child{width:84px}
+.ttable input[type=number]{padding:4px 6px}
+.ttable .side{font-family:var(--f-mono);font-size:10.5px;color:var(--muted);display:block}
+.tsum{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:12.5px;margin-top:8px}
+
+main{display:flex;flex-direction:column;gap:18px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;min-width:0}
+.card h2{font-family:var(--f-display);font-weight:600;font-size:20px;margin:0 0 4px;letter-spacing:.01em}
+.card .sub{color:var(--muted);font-size:13px;margin:0 0 12px}
+
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+@media (max-width:1180px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:520px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--panel);padding:12px 14px}
+.kpi .k{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.kpi .v{font-family:var(--f-display);font-weight:600;font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums;margin-top:4px;white-space:nowrap}
+.kpi .v small{font-family:var(--f-body);font-size:13px;font-weight:500;color:var(--muted);margin-left:3px}
+.kpi .d{font-size:12px;color:var(--muted);margin-top:2px}
+.kpi.hero .v{color:var(--good)}
+.kpi.hero.neg .v{color:var(--bad)}
+
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--muted);margin-bottom:8px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-2px;margin-right:5px}
+.legend i.ln{height:0;border-top:2px dashed;border-radius:0;vertical-align:3px}
+.chartbox{position:relative;height:270px}
+.chartbox.small{height:220px}
+
+.live{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:18px}
+@media (max-width:760px){.live{grid-template-columns:minmax(0,1fr)}}
+.player{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.player input[type=range]{flex:1;min-width:160px;accent-color:var(--accent)}
+.clock{font-family:var(--f-mono);font-size:26px;font-weight:500;font-variant-numeric:tabular-nums}
+.state{display:inline-block;font-family:var(--f-display);font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 10px;border-radius:3px;color:#fff;font-size:15px}
+.state.ch{background:var(--charge)} .state.dis{background:var(--discharge)} .state.idle{background:var(--idle);color:var(--ink)}
+.readout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 18px;margin-top:12px;font-size:13.5px}
+.readout div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted var(--line);padding:3px 0}
+.readout b{font-family:var(--f-mono);font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
+.why{margin-top:12px;font-size:14px;max-width:60ch}
+.socbar{position:relative;height:120px;border:2px solid var(--ink);border-radius:6px;overflow:hidden;background:var(--bg);margin-top:4px}
+.socbar .fill{position:absolute;left:0;right:0;bottom:0;background:var(--soc);transition:height .25s}
+.socbar .lim{position:absolute;left:0;right:0;border-top:1px dashed var(--ink);opacity:.5}
+.socbar .pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--f-display);font-weight:700;font-size:34px;color:var(--ink);mix-blend-mode:normal}
+.flow{display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:var(--f-mono);font-size:12.5px;margin-top:10px;color:var(--muted)}
+.flow .arrow{flex:1;height:2px;background:var(--line);position:relative}
+.flow .arrow.on-ch{background:var(--charge)} .flow .arrow.on-dis{background:var(--discharge)}
+
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+@media (max-width:860px){.two{grid-template-columns:minmax(0,1fr)}}
+table.pl{width:100%;border-collapse:collapse;font-size:13.5px}
+table.pl td{padding:5px 0;border-bottom:1px solid var(--line)}
+table.pl td.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;padding-left:10px}
+table.pl tr.ind td:first-child{padding-left:16px;color:var(--muted)}
+table.pl tr.tot td{font-weight:600;border-top:2px solid var(--ink);border-bottom:none;padding-top:8px}
+table.pl tr.info td{color:var(--muted);font-size:12.5px;border-bottom:1px dotted var(--line)}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+
+.balance{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.bal{display:grid;grid-template-columns:130px minmax(0,1fr) 92px;gap:8px;align-items:center;font-size:13px}
+.bal .bar{height:16px;background:var(--chip);border-radius:2px;overflow:hidden}
+.bal .bar span{display:block;height:100%}
+.bal b{font-family:var(--f-mono);font-weight:500;text-align:right;font-variant-numeric:tabular-nums}
+
+.formula{font-family:var(--f-mono);font-size:13px;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:10px 12px;margin:10px 0;overflow-x:auto;white-space:nowrap}
+.be{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:14px}
+.be input{width:110px}
+.be .out{font-family:var(--f-display);font-size:24px;font-weight:600;font-variant-numeric:tabular-nums}
+
+.sens{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:6px}
+@media (max-width:560px){.sens{grid-template-columns:minmax(0,1fr)}}
+.sens > div{border:1px solid var(--line);border-radius:4px;padding:10px}
+.sens .k{font-size:12px;color:var(--muted)}
+.sens .v{font-family:var(--f-display);font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+.sens .d{font-size:12px}
+
+.tablewrap{max-height:430px;overflow:auto;border:1px solid var(--line);border-radius:4px}
+table.iv{border-collapse:collapse;width:100%;font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums;min-width:780px}
+table.iv th{position:sticky;top:0;background:var(--panel);text-align:right;padding:6px 8px;border-bottom:2px solid var(--ink);font-family:var(--f-body);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+table.iv td{text-align:right;padding:3px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.iv th:first-child,table.iv td:first-child,table.iv th:nth-child(3),table.iv td:nth-child(3){text-align:left}
+table.iv tr.cur td{background:var(--chip)}
+table.iv tr{cursor:pointer}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.msg{font-size:13px;margin-top:8px}
+.msg.err{color:var(--bad)} .msg.ok{color:var(--good)}
+.how{font-size:14px;max-width:75ch}
+.how p{margin:0 0 10px}
+.how ol{margin:0 0 10px;padding-left:20px}
+@media (prefers-reduced-motion:reduce){.socbar .fill{transition:none}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header class="top">
+  <h1>EMS Baterie PZU<small>Arbitraj pe Piața pentru Ziua Următoare, interval de 15 minute · pierderi în baterie · tarife reglementate pe energia extrasă</small></h1>
+  <div class="tag"><span id="tagScen">Date: exemplu sintetic</span><span id="tagN">96 intervale × 15 min</span><span id="tagTime">—</span></div>
+</header>
+
+<div class="grid">
+<aside>
+  <fieldset>
+    <legend>Prețuri PZU</legend>
+    <div class="row"><label for="scen">Scenariu</label>
+      <select id="scen">
+        <option value="spring">Primăvară, surplus solar</option>
+        <option value="summer">Vară, volatilitate mare</option>
+        <option value="winter">Iarnă, vârf dublu</option>
+        <option value="flat">Zi plată, spread mic</option>
+        <option value="custom">Prețuri lipite</option>
+      </select></div>
+    <div class="btns"><button id="reseed" type="button">Generează altă zi</button></div>
+    <p class="note">Scenariile sunt prețuri sintetice cu profil realist, nu cotații OPCOM reale. Pentru o zi reală, lipiți cele 96 de prețuri mai jos.</p>
+    <details id="pasteBox" style="margin-top:10px">
+      <summary style="cursor:pointer;font-size:13.5px;font-weight:600">Lipește prețuri (OPCOM, Excel, CSV)</summary>
+      <textarea id="paste" placeholder="Câte un preț pe rând, de ex.&#10;452,18&#10;448,90&#10;…&#10;sau rânduri «interval;preț»"></textarea>
+      <div class="row"><label for="cur">Moneda prețurilor</label>
+        <select id="cur"><option value="lei">lei/MWh</option><option value="eur">EUR/MWh</option></select></div>
+      <div class="row"><label for="fx">Curs EUR/lei</label><input id="fx" type="number" step="0.0001" value="5.0800"></div>
+      <div class="btns"><button id="applyPaste" class="primary" type="button">Folosește prețurile</button></div>
+      <p class="note">Se acceptă format românesc (1.234,56) sau englezesc (1234.56). Pe rânduri cu mai multe coloane se ia ultima valoare numerică. Orice număr de intervale (92/100 în zilele cu schimbare de oră, mai multe zile la rând).</p>
+      <div id="pasteMsg" class="msg"></div>
+    </details>
+  </fieldset>
+
+  <fieldset>
+    <legend>Baterie</legend>
+    <div class="row"><label for="pch">Putere încărcare <em>MW</em></label><input id="pch" type="number" step="1" min="1" value="50"></div>
+    <div class="row"><label for="pdis">Putere descărcare <em>MW</em></label><input id="pdis" type="number" step="1" min="1" value="50"></div>
+    <div class="row"><label for="cap">Capacitate <em>MWh</em></label><input id="cap" type="number" step="1" min="1" value="100"></div>
+    <div class="row"><label for="rte">Randament dus-întors <em>%</em></label><input id="rte" type="number" step="0.5" min="50" max="100" value="88"></div>
+    <div class="row"><label for="socmin">SoC minim <em>%</em></label><input id="socmin" type="number" step="1" min="0" max="100" value="5"></div>
+    <div class="row"><label for="socmax">SoC maxim <em>%</em></label><input id="socmax" type="number" step="1" min="0" max="100" value="95"></div>
+    <div class="row"><label for="soc0">SoC inițial <em>%</em></label><input id="soc0" type="number" step="1" min="0" max="100" value="20"></div>
+    <label class="chk"><input id="finalEq" type="checkbox" checked> SoC final = SoC inițial</label>
+    <div class="row"><label for="aux">Servicii interne <em>MW, din rețea</em></label><input id="aux" type="number" step="0.05" min="0" value="0.30"></div>
+    <div class="row"><label for="deg">Cost degradare <em>lei/MWh desc.</em></label><input id="deg" type="number" step="1" min="0" value="45"></div>
+    <div class="row"><label for="cyc">Limită cicluri <em>pe zi, 0 = fără</em></label><input id="cyc" type="number" step="0.1" min="0" value="2"></div>
+    <p class="note" id="etaNote">η încărcare = η descărcare = √RTE</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Tarife reglementate</legend>
+    <table class="ttable" id="tariffTable"></table>
+    <div class="tsum"><span>Pe MWh extras</span><b id="sumW">—</b></div>
+    <div class="tsum"><span>Pe MWh injectat</span><b id="sumI">—</b></div>
+    <p class="note">Valori ilustrative în lei/MWh. Verificați ordinele ANRE în vigoare și nivelul de tensiune la care este racordată instalația. Debifați componentele care nu se aplică.</p>
+  </fieldset>
+</aside>
+
+<main>
+  <section class="kpis" id="kpis" aria-label="Rezultatul zilei"></section>
+
+  <section class="card">
+    <h2>Prețul PZU și deciziile EMS</h2>
+    <p class="sub">Fiecare bară este un interval de 15 minute, colorată după acțiunea aleasă. Liniile punctate sunt pragurile calculate de optimizator din valoarea marginală a energiei stocate.</p>
+    <div class="legend">
+      <span><i style="background:var(--charge)"></i>Încărcare</span>
+      <span><i style="background:var(--discharge)"></i>Descărcare</span>
+      <span><i style="background:var(--idle)"></i>Repaus</span>
+      <span><i class="ln" style="border-color:var(--charge)"></i>Încarcă dacă prețul e sub</span>
+      <span><i class="ln" style="border-color:var(--discharge)"></i>Descarcă dacă prețul e peste</span>
+    </div>
+    <div class="chartbox"><canvas id="cPrice" aria-label="Grafic prețuri PZU și decizii"></canvas></div>
+  </section>
+
+  <section class="card">
+    <h2>Putere la punctul de racordare și stare de încărcare</h2>
+    <p class="sub">Putere pozitivă = injecție în rețea, negativă = extragere. SoC în % din capacitatea nominală.</p>
+    <div class="legend">
+      <span><i style="background:var(--charge)"></i>Extragere (MW)</span>
+      <span><i style="background:var(--discharge)"></i>Injecție (MW)</span>
+      <span><i style="background:var(--soc)"></i>SoC (%)</span>
+    </div>
+    <div class="chartbox small"><canvas id="cPower" aria-label="Grafic putere și SoC"></canvas></div>
+  </section>
+
+  <section class="card">
+    <h2>Simulare pas cu pas</h2>
+    <p class="sub">Rulați ziua interval cu interval, cum ar executa EMS-ul programul trimis la OPCOM și operatorului de rețea.</p>
+    <div class="player">
+      <button id="play" class="primary" type="button">▶ Rulează</button>
+      <input id="cursor" type="range" min="0" max="95" value="0" aria-label="Interval curent">
+      <select id="speed" aria-label="Viteză" style="width:auto"><option value="400">1×</option><option value="150" selected>3×</option><option value="50">8×</option></select>
+    </div>
+    <div class="live" style="margin-top:14px">
+      <div>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span class="clock" id="lClock">00:00–00:15</span><span class="state idle" id="lState">Repaus</span></div>
+        <div class="readout" id="lRead"></div>
+        <p class="why" id="lWhy"></p>
+      </div>
+      <div>
+        <div class="socbar" id="socbar"><div class="fill" id="socFill"></div><div class="lim" id="limMax"></div><div class="lim" id="limMin"></div><div class="pct" id="socPct">—</div></div>
+        <div class="flow"><span>Rețea</span><span class="arrow" id="flowArrow"></span><span id="flowTxt">0 MW</span><span class="arrow" id="flowArrow2"></span><span>Baterie</span></div>
+        <p class="note" id="cumTxt"></p>
+      </div>
+    </div>
+  </section>
+
+  <div class="two">
+    <section class="card">
+      <h2>Contul zilei</h2>
+      <p class="sub">Toate sumele în lei, pentru întregul orizont simulat.</p>
+      <table class="pl" id="pl"></table>
+      <p class="note" id="lambdaNote"></p>
+    </section>
+    <section class="card">
+      <h2>Bilanț energetic și pierderi</h2>
+      <p class="sub">Energia trasă din rețea se plătește integral, cu tarife, inclusiv partea pierdută în baterie.</p>
+      <div class="balance" id="balance"></div>
+      <p class="note" id="lossNote"></p>
+      <h2 style="margin-top:18px;font-size:18px">Cât costă tarifele și pierderile</h2>
+      <p class="sub">Aceeași zi, reoptimizată cu o singură ipoteză schimbată.</p>
+      <div class="sens" id="sens"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Pragul de rentabilitate</h2>
+    <p class="sub">Un MWh cumpărat din PZU merită stocat doar dacă poate fi revândut la cel puțin acest preț.</p>
+    <div class="formula" id="beFormula"></div>
+    <div class="be"><label for="beIn">Preț de încărcare</label><input id="beIn" type="number" step="10" value="200"><span>lei/MWh →</span><span>descărcare minimă</span><span class="out" id="beOut">—</span><span>lei/MWh</span></div>
+    <p class="note" id="beNote"></p>
+  </section>
+
+  <section class="card">
+    <h2>Programul pe intervale</h2>
+    <div class="btns" style="margin:0 0 10px"><button id="copyCsv" type="button">Copiază tabelul (CSV)</button><span id="copyMsg" class="msg" style="margin:0;align-self:center"></span></div>
+    <div class="tablewrap"><table class="iv" id="iv"></table></div>
+    <textarea id="csvFallback" hidden readonly style="margin-top:8px"></textarea>
+  </section>
+
+  <section class="card how">
+    <h2>Cum decide EMS-ul</h2>
+    <p>EMS-ul primește cele 96 de prețuri PZU ale zilei următoare și calculează programul de încărcare și descărcare care maximizează profitul net. Folosește programare dinamică pe starea de încărcare a bateriei, deci găsește optimul pentru întreaga zi, nu doar reacții de la un interval la altul.</p>
+    <ol>
+      <li>Pentru fiecare MWh extras din rețea se plătește prețul PZU plus tarifele reglementate bifate. Un preț negativ devine venit, dar tarifele se plătesc oricum.</li>
+      <li>La încărcare se pierde (1 − η<sub>înc</sub>) din energie, la descărcare (1 − η<sub>desc</sub>). Randamentul dus-întors este produsul lor.</li>
+      <li>Pentru fiecare MWh injectat se încasează prețul PZU, minus tariful de injecție și costul estimat de degradare.</li>
+      <li>Serviciile interne (climatizare, invertoare în gol) se alimentează din rețea tot timpul și se plătesc cu preț și tarife.</li>
+      <li>Limita de cicluri se impune printr-un preț umbră pe energia descărcată. Prețul umbră schimbă deciziile, dar nu apare în cont ca un cost.</li>
+    </ol>
+    <p>Liniile punctate din grafic arată, pentru fiecare interval, prețul sub care merită încărcat și prețul peste care merită descărcat, derivate din valoarea marginală a energiei rămase în baterie. Optimizarea presupune prețuri cunoscute, cum sunt după închiderea PZU; nu modelează piața intrazilnică, echilibrarea sau serviciile de sistem.</p>
+  </section>
+</main>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+/*ENGINE-START*/
+const DT = 0.25; // h per interval
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+const SCEN = {
+  spring:{name:"Primăvară, surplus solar", h:[520,480,455,440,450,520,700,860,720,430,180,40,-20,-60,-35,60,280,620,980,1450,1320,980,760,610]},
+  summer:{name:"Vară, volatilitate mare", h:[600,560,530,520,540,600,720,800,560,240,-30,-110,-180,-220,-150,-40,200,700,1650,2450,1900,1200,880,700]},
+  winter:{name:"Iarnă, vârf dublu", h:[560,520,500,490,510,620,860,1120,1180,1020,900,840,800,790,820,930,1180,1460,1520,1380,1150,920,760,640]},
+  flat:{name:"Zi plată, spread mic", h:[610,600,590,585,590,610,650,690,700,680,660,650,640,640,650,660,690,720,760,780,740,700,660,630]}
+};
+function genPrices(key, seed){
+  const h = SCEN[key].h, r = mulberry32(seed), out=[];
+  for(let i=0;i<96;i++){
+    const hr=Math.floor(i/4), q=i%4, a=h[hr], b=h[(hr+1)%24];
+    const base = a + (b-a)*(q/4)*0.85;
+    const noise = (r()+r()+r()-1.5)*(0.05*Math.abs(base)+18);
+    out.push(Math.round((base+noise)*100)/100);
+  }
+  return out;
+}
+
+function parseNum(raw){
+  let s=String(raw).trim().replace(/\s| /g,'').replace(/(lei|ron|eur|€)(\/mwh)?/ig,'');
+  if(!s) return NaN;
+  const dot=s.includes('.'), com=s.includes(',');
+  if(dot&&com){ s = s.lastIndexOf(',')>s.lastIndexOf('.') ? s.replace(/\./g,'').replace(',','.') : s.replace(/,/g,''); }
+  else if(com){ if((s.match(/,/g)||[]).length>1) return NaN; s=s.replace(',','.'); }
+  else if(dot && /^-?\d{1,3}(\.\d{3})+$/.test(s)){ s=s.replace(/\./g,''); }
+  if(!/^[-+]?\d*\.?\d+(e[-+]?\d+)?$/i.test(s)) return NaN;
+  return Number(s);
+}
+function parsePrices(text){
+  const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const out=[];
+  const fields=l=>{let f=l.split(/[;\t|]/); if(f.length===1 && /,\s/.test(l)) f=l.split(/,\s+/); if(f.length===1) f=l.split(/\s+/); return f;};
+  if(lines.length===1){ for(const f of fields(lines[0])){const v=parseNum(f); if(Number.isFinite(v)) out.push(v);} return out; }
+  for(const l of lines){ const f=fields(l); for(let k=f.length-1;k>=0;k--){const v=parseNum(f[k]); if(Number.isFinite(v)){out.push(v);break;}} }
+  return out;
+}
+
+// Dynamic programming over a discretised state of charge.
+// p: {Pch,Pdis,cap,socMin,socMax,soc0,rte,aux,deg,cycPerDay,finalEq,Tw,Ti}
+function optimize(prices, p){
+  const T=prices.length, etaC=Math.sqrt(p.rte), etaD=Math.sqrt(p.rte);
+  const Emin=p.cap*p.socMin, Emax=p.cap*p.socMax, usable=Emax-Emin;
+  const a=p.Pch*DT*etaC, b=p.Pdis*DT/etaD; // stored MWh per full-power interval
+  if(!(usable>0)||!(a>0)||!(b>0)||T<1) return {error:"Parametri invalizi: verificați puterea, capacitatea și limitele SoC."};
+  const budget=1.2e7;
+  let kmax=Math.floor(Math.sqrt(budget/(T*(usable/a)*(1+b/a))));
+  kmax=Math.max(3,Math.min(80,kmax));
+  let kc=kmax, best=1;
+  for(let k=Math.max(3,Math.floor(kmax*0.6));k<=kmax;k++){const x=k*b/a, fr=x-Math.floor(x+1e-9); const err=fr/x; if(err<best-1e-12){best=err;kc=k;}}
+  const dE=a/kc, kd=Math.max(1,Math.floor(kc*b/a+1e-9));
+  const N=Math.floor(usable/dE+1e-9)+1;
+  if(N<2) return {error:"Capacitatea utilă este prea mică față de puterea bateriei."};
+  const s0=Math.max(0,Math.min(N-1,Math.round((p.cap*p.soc0-Emin)/dE)));
+  const K=kc+kd+1, rew=new Float64Array(K);
+  const A=new Int16Array(T*N);
+  const V=[]; for(let t=0;t<=T;t++) V.push(new Float64Array(N));
+
+  function dp(lambda){
+    const VT=V[T]; for(let i=0;i<N;i++) VT[i]= p.finalEq ? (i===s0?0:-Infinity) : 0;
+    for(let t=T-1;t>=0;t--){
+      const pr=prices[t], Vn=V[t+1], Vt=V[t];
+      for(let d=-kd; d<=kc; d++){
+        let r=0;
+        if(d>0){ const g=d*dE/etaC; r=-g*(pr+p.Tw); }
+        else if(d<0){ const inj=-d*dE*etaD; r=inj*(pr-p.Ti-p.deg-lambda); }
+        rew[d+kd]=r;
+      }
+      const off=t*N;
+      for(let i=0;i<N;i++){
+        let bv=Vn[i], ba=0;
+        const lo=Math.max(-kd,-i), hi=Math.min(kc,N-1-i);
+        for(let d=lo; d<=hi; d++){ if(d===0) continue; const v=rew[d+kd]+Vn[i+d]; if(v>bv+1e-9){bv=v;ba=d;} }
+        Vt[i]=bv; A[off+i]=ba;
+      }
+    }
+    const acts=new Int16Array(T); let s=s0, out=0;
+    for(let t=0;t<T;t++){ const d=A[t*N+s]; acts[t]=d; if(d<0) out+=-d*dE; s+=d; }
+    return {acts, storedOut:out, feasible:Number.isFinite(V[0][s0])};
+  }
+
+  let lambda=0, res=dp(0);
+  if(!res.feasible) return {error:"Nu există program fezabil cu SoC final = SoC inițial."};
+  const limit = p.cycPerDay>0 ? p.cycPerDay*(T/96)*usable : Infinity;
+  let lambdaActive=false;
+  if(res.storedOut>limit*(1+1e-6)){
+    let lo=0, hi=50, r=dp(hi);
+    while(r.storedOut>limit*(1+1e-6) && hi<2e5){ lo=hi; hi*=2; r=dp(hi); }
+    for(let it=0;it<14;it++){ const mid=(lo+hi)/2; const rm=dp(mid); if(rm.storedOut>limit*(1+1e-6)) lo=mid; else hi=mid; }
+    lambda=hi; res=dp(hi); lambdaActive=true;
+  }
+
+  // marginal value of stored energy after each decision, and implied price thresholds
+  const thrCh=new Array(T).fill(null), thrDis=new Array(T).fill(null), wv=new Array(T).fill(null);
+  let s=s0;
+  const socs=[]; // SoC level index at start of each interval
+  for(let t=0;t<T;t++){
+    socs.push(s); const j=s+res.acts[t]; const Vn=V[t+1];
+    const f = j+1<N && Number.isFinite(Vn[j+1]) && Number.isFinite(Vn[j]) ? (Vn[j+1]-Vn[j])/dE : null;
+    const bk = j-1>=0 && Number.isFinite(Vn[j-1]) && Number.isFinite(Vn[j]) ? (Vn[j]-Vn[j-1])/dE : null;
+    const w = f!==null&&bk!==null ? (f+bk)/2 : (f!==null?f:bk);
+    if(w!==null){ wv[t]=w; thrCh[t]=w*etaC-p.Tw; thrDis[t]=w/etaD+p.Ti+p.deg+lambda; }
+    s=j;
+  }
+  return account(prices, p, {acts:res.acts, dE, etaC, etaD, Emin, s0, usable, N, kc, kd, lambda, lambdaActive, thrCh, thrDis, wv});
+}
+
+function account(prices, p, o){
+  const T=prices.length, rows=[];
+  const tot={gridIn:0,gridOut:0,energyCost:0,revenue:0,tarW:0,tarI:0,auxE:0,auxEnergy:0,auxTar:0,deg:0,lossC:0,lossD:0,net:0,storedIn:0,storedOut:0,costChWeighted:0,revDisWeighted:0};
+  let E=o.Emin+o.s0*o.dE; const E0=E; let cum=0;
+  for(let t=0;t<T;t++){
+    const d=o.acts[t], pr=prices[t];
+    const st=d>0? d*o.dE : 0, so=d<0? -d*o.dE : 0;
+    const gIn=st/o.etaC, gOut=so*o.etaD;
+    const auxE=p.aux*DT;
+    const r={t, price:pr, d, Ebefore:E, gIn, gOut, pCh:gIn/DT, pDis:gOut/DT,
+      energyCost:gIn*pr, tarW:gIn*p.Tw, revenue:gOut*pr, tarI:gOut*p.Ti, deg:gOut*p.deg,
+      auxEnergy:auxE*pr, auxTar:auxE*p.Tw, lossC:gIn-st, lossD:so-gOut, thrCh:o.thrCh[t], thrDis:o.thrDis[t], wv:o.wv[t]};
+    r.net = r.revenue - r.energyCost - r.tarW - r.tarI - r.deg - r.auxEnergy - r.auxTar;
+    E += st - so; r.Eafter=E; cum+=r.net; r.cum=cum;
+    rows.push(r);
+    tot.gridIn+=gIn; tot.gridOut+=gOut; tot.energyCost+=r.energyCost; tot.revenue+=r.revenue; tot.tarW+=r.tarW; tot.tarI+=r.tarI;
+    tot.auxE+=auxE; tot.auxEnergy+=r.auxEnergy; tot.auxTar+=r.auxTar; tot.deg+=r.deg; tot.lossC+=r.lossC; tot.lossD+=r.lossD; tot.net+=r.net;
+    tot.storedIn+=st; tot.storedOut+=so;
+  }
+  tot.E0=E0; tot.Eend=E; tot.cycles=tot.storedOut/o.usable;
+  tot.avgCh = tot.gridIn>0 ? tot.energyCost/tot.gridIn : null;
+  tot.avgDis = tot.gridOut>0 ? tot.revenue/tot.gridOut : null;
+  return {rows, tot, meta:o, etaC:o.etaC, etaD:o.etaD};
+}
+/*ENGINE-END*/
+</script>
+<script>
+const $=id=>document.getElementById(id);
+const nf=(d=0)=>new Intl.NumberFormat('ro-RO',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmt=(v,d=0)=>v===null||v===undefined||!Number.isFinite(v)?'—':nf(d).format(Math.abs(v)<0.5*Math.pow(10,-d)?0:v);
+const sgn=(v,d=0)=>(v>0?'+':v<0?'−':'')+fmt(Math.abs(v),d);
+const hhmm=i=>{const m=i*15; const day=Math.floor(m/1440), mm=m%1440; const s=String(Math.floor(mm/60)).padStart(2,'0')+':'+String(mm%60).padStart(2,'0'); return day>0?`Z${day+1} ${s}`:s;};
+const span=i=>hhmm(i)+'–'+hhmm(i+1).replace(/^Z\d+ /,'');
+
+const TARIFFS=[
+  {id:'tl',name:'Transport, extragere (TL)',side:'w',v:27.00,on:true},
+  {id:'ss',name:'Servicii de sistem',side:'w',v:11.50,on:true},
+  {id:'di',name:'Distribuție, 110 kV',side:'w',v:23.00,on:true},
+  {id:'cv',name:'Contribuție certificate verzi',side:'w',v:35.00,on:true},
+  {id:'cg',name:'Contribuție cogenerare',side:'w',v:3.00,on:false},
+  {id:'tg',name:'Transport, injecție (TG)',side:'i',v:4.50,on:true},
+];
+function buildTariffs(){
+  $('tariffTable').innerHTML=TARIFFS.map(t=>`<tr><td><input type="checkbox" id="on_${t.id}" ${t.on?'checked':''} aria-label="Se aplică ${t.name}"></td>
+    <td><label for="v_${t.id}">${t.name}</label><span class="side">${t.side==='w'?'pe energia extrasă':'pe energia injectată'}</span></td>
+    <td><input type="number" id="v_${t.id}" step="0.01" min="0" value="${t.v.toFixed(2)}"></td></tr>`).join('');
+}
+buildTariffs();
+
+let state={scen:'spring', seed:20261108, custom:null, prices:[], res:null, alt:null, cursor:0, playing:null};
+
+function readParams(){
+  const num=(id,def)=>{const v=parseFloat($(id).value); return Number.isFinite(v)?v:def;};
+  let Tw=0,Ti=0; const comps=[];
+  for(const t of TARIFFS){ const on=$('on_'+t.id).checked, v=num('v_'+t.id,0); comps.push({...t,on,v}); if(on){ if(t.side==='w') Tw+=v; else Ti+=v; } }
+  const socMin=Math.min(num('socmin',5),num('socmax',95))/100, socMax=Math.max(num('socmin',5),num('socmax',95))/100;
+  let soc0=num('soc0',20)/100; soc0=Math.max(socMin,Math.min(socMax,soc0));
+  return {Pch:Math.max(0.1,num('pch',50)),Pdis:Math.max(0.1,num('pdis',50)),cap:Math.max(0.1,num('cap',100)),
+    rte:Math.max(0.3,Math.min(1,num('rte',88)/100)),socMin,socMax,soc0,finalEq:$('finalEq').checked,
+    aux:Math.max(0,num('aux',0)),deg:Math.max(0,num('deg',0)),cycPerDay:Math.max(0,num('cyc',0)),Tw,Ti,comps};
+}
+
+function currentPrices(){
+  if(state.scen==='custom' && state.custom) return state.custom;
+  return genPrices(state.scen==='custom'?'spring':state.scen, state.seed + ['spring','summer','winter','flat'].indexOf(state.scen)*7919);
+}
+
+let timer=null;
+function schedule(){ clearTimeout(timer); timer=setTimeout(run,120); }
+
+function run(){
+  const t0=performance.now();
+  const p=readParams();
+  state.prices=currentPrices();
+  $('sumW').textContent=fmt(p.Tw,2)+' lei'; $('sumI').textContent=fmt(p.Ti,2)+' lei';
+  $('etaNote').textContent=`η încărcare = η descărcare = √RTE = ${fmt(Math.sqrt(p.rte)*100,2)} %`;
+  const res=optimize(state.prices,p);
+  if(res.error){ $('kpis').innerHTML=`<div class="kpi" style="grid-column:1/-1"><div class="k">Eroare</div><div class="d" style="color:var(--bad);font-size:14px">${res.error}</div></div>`; return; }
+  state.res=res; state.p=p;
+  const noTar=optimize(state.prices,{...p,Tw:0,Ti:0});
+  const noLoss=optimize(state.prices,{...p,rte:1});
+  state.alt={noTar,noLoss};
+  const T=state.prices.length;
+  $('cursor').max=T-1;
+  if(state.cursor>T-1) state.cursor=0;
+  if(!state.userMoved){ let bi=0,bv=-Infinity; res.rows.forEach((r,i)=>{if(r.pDis>0 && r.price>bv){bv=r.price;bi=i;}}); state.cursor=bi; }
+  $('cursor').value=state.cursor;
+  $('tagScen').textContent= state.scen==='custom'?'Date: prețuri lipite':'Date: exemplu sintetic · '+SCEN[state.scen].name;
+  $('tagN').textContent=`${T} intervale × 15 min`;
+  renderKpis(); renderCharts(); renderPL(); renderBalance(); renderSens(); renderBE(); renderTable(); renderLive();
+  $('tagTime').textContent=`optimizat în ${Math.round(performance.now()-t0)} ms`;
+}
+
+function renderKpis(){
+  const {tot}=state.res, p=state.p;
+  const spread = tot.avgCh!==null&&tot.avgDis!==null ? tot.avgDis-tot.avgCh : null;
+  const lossPct = tot.gridIn>0 ? (tot.lossC+tot.lossD)/tot.gridIn*100 : 0;
+  const k=[
+    {c:'hero'+(tot.net<0?' neg':''), k:'Profit net', v:sgn(tot.net), u:'lei', d:`${fmt(tot.net/(p.Pdis),0)} lei/MW instalat`},
+    {k:'Extras din rețea', v:fmt(tot.gridIn,1), u:'MWh', d:`preț mediu ${fmt(tot.avgCh,0)} lei/MWh`},
+    {k:'Injectat în rețea', v:fmt(tot.gridOut,1), u:'MWh', d:`preț mediu ${fmt(tot.avgDis,0)} lei/MWh`},
+    {k:'Pierderi în baterie', v:fmt(tot.lossC+tot.lossD,1), u:'MWh', d:`${fmt(lossPct,1)} % din energia extrasă`},
+    {k:'Tarife plătite', v:fmt(tot.tarW+tot.tarI+tot.auxTar,0), u:'lei', d:`${fmt(p.Tw,1)} lei pe MWh extras`},
+    {k:'Cicluri echivalente', v:fmt(tot.cycles,2), u:'', d:`spread captat ${fmt(spread,0)} lei/MWh`},
+  ];
+  $('kpis').innerHTML=k.map(x=>`<div class="kpi ${x.c||''}"><div class="k">${x.k}</div><div class="v">${x.v}<small>${x.u}</small></div><div class="d">${x.d}</div></div>`).join('');
+}
+
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let cPrice=null,cPower=null;
+const cursorPlugin={id:'cursor',afterDatasetsDraw(ch){const x=ch.scales.x; if(!x) return; const px=x.getPixelForValue(state.cursor); const {top,bottom}=ch.chartArea; const c=ch.ctx; c.save(); c.strokeStyle=css('--ink'); c.globalAlpha=.55; c.lineWidth=1.5; c.beginPath(); c.moveTo(px,top); c.lineTo(px,bottom); c.stroke(); c.restore();}};
+function renderCharts(){
+  const rows=state.res.rows, labels=rows.map(r=>hhmm(r.t));
+  const C={ch:css('--charge'),dis:css('--discharge'),idle:css('--idle'),soc:css('--soc'),ink:css('--ink'),muted:css('--muted'),line:css('--line')};
+  const col=rows.map(r=>r.d>0?C.ch:r.d<0?C.dis:C.idle);
+  const common={responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},
+    onClick:(e,els,ch)=>{const x=ch.scales.x.getValueForPixel(e.x); if(x>=0){state.cursor=Math.round(x); state.userMoved=true; $('cursor').value=state.cursor; renderLive();}},
+    plugins:{legend:{display:false},tooltip:{callbacks:{}}},
+    scales:{x:{ticks:{color:C.muted,maxRotation:0,autoSkip:true,maxTicksLimit:13,font:{family:"'IBM Plex Mono', ui-monospace, monospace",size:10}},grid:{display:false}}}};
+  const priceData={labels,datasets:[
+    {type:'bar',label:'Preț PZU',data:rows.map(r=>r.price),backgroundColor:col,barPercentage:1,categoryPercentage:.92,order:2},
+    {type:'line',label:'Prag încărcare',data:rows.map(r=>r.thrCh===null?null:Math.round(r.thrCh)),borderColor:C.ch,borderDash:[4,3],borderWidth:1.5,pointRadius:0,stepped:'middle',spanGaps:false,order:1},
+    {type:'line',label:'Prag descărcare',data:rows.map(r=>r.thrDis===null?null:Math.round(r.thrDis)),borderColor:C.dis,borderDash:[4,3],borderWidth:1.5,pointRadius:0,stepped:'middle',spanGaps:false,order:1}]};
+  // keep threshold lines from blowing up the axis
+  const pr=rows.map(r=>r.price), pmin=Math.min(...pr), pmax=Math.max(...pr), pad=(pmax-pmin)*0.12+20;
+  const optsP=structuredCloneSafe(common);
+  optsP.scales.y={min:Math.floor((Math.min(0,pmin)-pad)/50)*50,max:Math.ceil((pmax+pad)/50)*50,ticks:{color:C.muted,font:{family:"'IBM Plex Mono', ui-monospace, monospace",size:10}},grid:{color:C.line},title:{display:true,text:'lei/MWh',color:C.muted}};
+  optsP.plugins.tooltip.callbacks.label=c=>`${c.dataset.label}: ${fmt(c.parsed.y,0)} lei/MWh`;
+  const powData={labels,datasets:[
+    {type:'bar',label:'Putere',data:rows.map(r=>r.pDis>0?r.pDis:-r.pCh),backgroundColor:col,barPercentage:1,categoryPercentage:.92,yAxisID:'y',order:2},
+    {type:'line',label:'SoC',data:rows.map(r=>r.Eafter/state.p.cap*100),borderColor:C.soc,backgroundColor:C.soc+'22',fill:true,borderWidth:2,pointRadius:0,yAxisID:'y2',order:1,tension:0}]};
+  const optsW=structuredCloneSafe(common);
+  const pm=Math.max(state.p.Pch,state.p.Pdis);
+  optsW.scales.y={min:-Math.ceil(pm*1.1/10)*10,max:Math.ceil(pm*1.1/10)*10,ticks:{callback:v=>fmt(v,0),color:C.muted,font:{family:"'IBM Plex Mono', ui-monospace, monospace",size:10}},grid:{color:C.line},title:{display:true,text:'MW',color:C.muted}};
+  optsW.scales.y2={position:'right',min:0,max:100,ticks:{color:C.muted,font:{family:"'IBM Plex Mono', ui-monospace, monospace",size:10},callback:v=>v+' %'},grid:{display:false}};
+  optsW.plugins.tooltip.callbacks.label=c=>c.dataset.label==='SoC'?`SoC după interval: ${fmt(c.parsed.y,1)} %`:(c.parsed.y>0?`Injecție: ${fmt(c.parsed.y,1)} MW`:c.parsed.y<0?`Extragere: ${fmt(-c.parsed.y,1)} MW`:'Repaus');
+  if(cPrice) cPrice.destroy(); if(cPower) cPower.destroy();
+  if(typeof Chart==='undefined'){ $('cPrice').parentElement.innerHTML='<p class="note">Biblioteca de grafice nu s-a putut încărca.</p>'; return; }
+  cPrice=new Chart($('cPrice'),{data:priceData,options:optsP,plugins:[cursorPlugin]});
+  cPower=new Chart($('cPower'),{data:powData,options:optsW,plugins:[cursorPlugin]});
+}
+function structuredCloneSafe(o){ // clone plain objects while keeping functions
+  if(Array.isArray(o)) return o.map(structuredCloneSafe);
+  if(o&&typeof o==='object'){const r={}; for(const k in o) r[k]=structuredCloneSafe(o[k]); return r;}
+  return o;
+}
+
+function renderPL(){
+  const {tot}=state.res, p=state.p;
+  const line=(label,v,cls='')=>`<tr class="${cls}"><td>${label}</td><td class="n ${v>0?'pos':v<0?'neg':''}">${sgn(v)}</td></tr>`;
+  let h='';
+  h+=line(`Venit din energia injectată <span class="note">(${fmt(tot.gridOut,1)} MWh)</span>`, tot.revenue);
+  h+=line(`Cost energie extrasă la preț PZU <span class="note">(${fmt(tot.gridIn,1)} MWh)</span>`, -tot.energyCost);
+  for(const c of p.comps.filter(c=>c.on&&c.side==='w')) h+=line(`${c.name}`, -tot.gridIn*c.v, 'ind');
+  for(const c of p.comps.filter(c=>c.on&&c.side==='i')) h+=line(`${c.name}`, -tot.gridOut*c.v, 'ind');
+  h+=line(`Servicii interne: energie <span class="note">(${fmt(tot.auxE,1)} MWh)</span>`, -tot.auxEnergy);
+  h+=line(`Servicii interne: tarife`, -tot.auxTar, 'ind');
+  h+=line(`Cost estimat de degradare`, -tot.deg);
+  h+=`<tr class="tot"><td>Profit net</td><td class="n ${tot.net>=0?'pos':'neg'}">${sgn(tot.net)} lei</td></tr>`;
+  h+=`<tr class="info"><td>Energie stocată la început / la sfârșit</td><td class="n">${fmt(tot.E0,1)} / ${fmt(tot.Eend,1)} MWh</td></tr>`;
+  $('pl').innerHTML=h;
+  const m=state.res.meta;
+  $('lambdaNote').textContent = m.lambdaActive
+    ? `Limita de ${fmt(p.cycPerDay,1)} cicluri/zi este activă. Optimizatorul a folosit un preț umbră de ${fmt(m.lambda,0)} lei/MWh descărcat ca să o respecte; acesta nu este un cost plătit și nu apare în cont.`
+    : (p.cycPerDay>0?`Limita de ${fmt(p.cycPerDay,1)} cicluri/zi nu a fost atinsă.`:'Fără limită de cicluri.');
+}
+
+function renderBalance(){
+  const {tot}=state.res;
+  const mx=Math.max(tot.gridIn,tot.gridOut,1e-9);
+  const b=(lab,v,color)=>`<div class="bal"><span>${lab}</span><div class="bar"><span style="width:${Math.max(0,v/mx*100)}%;background:${color}"></span></div><b>${fmt(v,2)} MWh</b></div>`;
+  const dSt=tot.Eend-tot.E0;
+  $('balance').innerHTML=b('Extras din rețea',tot.gridIn,'var(--charge)')+b('Pierderi la încărcare',tot.lossC,'var(--bad)')+b('Stocat în celule',tot.storedIn,'var(--soc)')+b('Pierderi la descărcare',tot.lossD,'var(--bad)')+b('Injectat în rețea',tot.gridOut,'var(--discharge)')+b('Servicii interne',tot.auxE,'var(--idle)');
+  const effCost = tot.gridIn>0 ? (tot.energyCost+tot.tarW)/tot.gridIn : 0;
+  const lossVal=(tot.lossC+tot.lossD)*effCost;
+  $('lossNote').innerHTML=`Pierderi totale ${fmt(tot.lossC+tot.lossD,2)} MWh. La costul mediu al energiei extrase, cu tarife (${fmt(effCost,0)} lei/MWh), pierderile valorează aproximativ <b>${fmt(lossVal,0)} lei</b>. Variația stocului: ${sgn(dSt,2)} MWh.`;
+}
+
+function renderSens(){
+  const base=state.res.tot.net, a=state.alt;
+  const card=(k,r,dlabel)=>{ if(r.error) return `<div><div class="k">${k}</div><div class="d">${r.error}</div></div>`; const v=r.tot.net; return `<div><div class="k">${k}</div><div class="v">${sgn(v)} lei</div><div class="d">${dlabel(v-base)}</div></div>`; };
+  $('sens').innerHTML=
+    `<div><div class="k">Cazul simulat</div><div class="v">${sgn(base)} lei</div><div class="d">${fmt(state.res.tot.gridOut,1)} MWh injectați</div></div>`+
+    card('Fără tarife reglementate',a.noTar,d=>`tarifele costă ${fmt(d,0)} lei · ${fmt(a.noTar.tot.gridOut,1)} MWh injectați`)+
+    card('Fără pierderi (RTE 100 %)',a.noLoss,d=>`pierderile costă ${fmt(d,0)} lei · ${fmt(a.noLoss.tot.gridOut,1)} MWh injectați`);
+}
+
+function renderBE(){
+  const p=state.p, rte=p.rte;
+  $('beFormula').innerHTML=`p<sub>desc,min</sub> = (p<sub>înc</sub> + T<sub>extragere</sub>) / RTE + T<sub>injecție</sub> + c<sub>degradare</sub> = (p<sub>înc</sub> + ${fmt(p.Tw,2)}) / ${fmt(rte,3)} + ${fmt(p.Ti,2)} + ${fmt(p.deg,2)}`;
+  const v=parseFloat($('beIn').value);
+  const out=Number.isFinite(v)?(v+p.Tw)/rte+p.Ti+p.deg:null;
+  $('beOut').textContent=fmt(out,0);
+  const avg=state.res.tot.avgCh;
+  $('beNote').textContent = Number.isFinite(v) ? `Spread minim necesar: ${fmt(out-v,0)} lei/MWh. Din el, ${fmt(p.Tw/rte+p.Ti,0)} lei/MWh sunt tarife, ${fmt((v+p.Tw)*(1/rte-1),0)} lei/MWh acoperă pierderile, ${fmt(p.deg,0)} lei/MWh degradarea.` + (avg!==null?` Prețul mediu de încărcare în ziua simulată a fost ${fmt(avg,0)} lei/MWh.`:'') : '';
+}
+
+function renderTable(){
+  const rows=state.res.rows, cap=state.p.cap;
+  let h='<thead><tr><th>Interval</th><th>Preț lei/MWh</th><th>Acțiune</th><th>MW</th><th>MWh rețea</th><th>SoC %</th><th>Cost/venit energie</th><th>Tarife</th><th>Net lei</th><th>Cumulat lei</th></tr></thead><tbody>';
+  for(const r of rows){
+    const act=r.d>0?'Încărcare':r.d<0?'Descărcare':'Repaus', c=r.d>0?'var(--charge)':r.d<0?'var(--discharge)':'var(--idle)';
+    const mw=r.d>0?-r.pCh:r.pDis, mwh=r.d>0?-r.gIn:r.gOut;
+    h+=`<tr data-i="${r.t}" class="${r.t===state.cursor?'cur':''}"><td>${span(r.t)}</td><td>${fmt(r.price,2)}</td><td><span class="dot" style="background:${c}"></span>${act}</td><td>${sgn(mw,1)}</td><td>${sgn(mwh,2)}</td><td>${fmt(r.Eafter/cap*100,1)}</td><td>${sgn(r.revenue-r.energyCost,0)}</td><td>${sgn(-(r.tarW+r.tarI+r.auxTar),0)}</td><td>${sgn(r.net,0)}</td><td>${sgn(r.cum,0)}</td></tr>`;
+  }
+  $('iv').innerHTML=h+'</tbody>';
+}
+$('iv').addEventListener('click',e=>{const tr=e.target.closest('tr[data-i]'); if(!tr) return; state.cursor=+tr.dataset.i; state.userMoved=true; $('cursor').value=state.cursor; renderLive();});
+
+function renderLive(){
+  const r=state.res.rows[state.cursor], p=state.p, cap=p.cap, rows=state.res.rows;
+  $('lClock').textContent=span(r.t);
+  const st=$('lState'); st.className='state '+(r.d>0?'ch':r.d<0?'dis':'idle'); st.textContent=r.d>0?'Încărcare':r.d<0?'Descărcare':'Repaus';
+  const kv=(k,v)=>`<div><span>${k}</span><b>${v}</b></div>`;
+  $('lRead').innerHTML=
+    kv('Preț PZU',fmt(r.price,2)+' lei/MWh')+
+    kv('Putere',r.d>0?`−${fmt(r.pCh,1)} MW`:r.d<0?`+${fmt(r.pDis,1)} MW`:'0 MW')+
+    kv('Cost efectiv extragere',fmt(r.price+p.Tw,0)+' lei/MWh')+
+    kv('Venit efectiv injecție',fmt(r.price-p.Ti-p.deg,0)+' lei/MWh')+
+    kv('Prag încărcare',r.thrCh===null?'—':fmt(r.thrCh,0)+' lei/MWh')+
+    kv('Prag descărcare',r.thrDis===null?'—':fmt(r.thrDis,0)+' lei/MWh')+
+    kv('Net interval',sgn(r.net,0)+' lei')+
+    kv('Cumulat',sgn(r.cum,0)+' lei');
+  const socB=r.Ebefore/cap*100, socA=r.Eafter/cap*100;
+  let why;
+  const full=r.Ebefore>=cap*p.socMax-1e-6, empty=r.Ebefore<=cap*p.socMin+1e-6;
+  if(r.d>0){
+    const partial=r.pCh<p.Pch*0.98;
+    why=`Încarcă ${fmt(r.pCh,1)} MW. Un MWh extras costă ${fmt(r.price,0)} lei pe PZU plus ${fmt(p.Tw,0)} lei tarife, adică ${fmt((r.price+p.Tw)/state.res.etaC,0)} lei pentru fiecare MWh ajuns în celule după pierderi.`+(r.thrCh!==null?` Prețul este sub pragul de încărcare de ${fmt(r.thrCh,0)} lei/MWh, deci energia valorează mai mult mai târziu.`:'')+(partial?' Puterea este parțială pentru că bateria se apropie de SoC maxim sau programul are nevoie doar de atâta energie.':'');
+  } else if(r.d<0){
+    const partial=r.pDis<p.Pdis*0.98;
+    why=`Descarcă ${fmt(r.pDis,1)} MW. Fiecare MWh injectat aduce ${fmt(r.price,0)} lei minus ${fmt(p.Ti,1)} lei tarif de injecție și ${fmt(p.deg,0)} lei degradare.`+(r.thrDis!==null?` Prețul depășește pragul de descărcare de ${fmt(r.thrDis,0)} lei/MWh.`:'')+(partial?' Puterea este parțială: bateria se apropie de SoC minim sau energia rămasă e rezervată pentru un interval mai scump.':'');
+  } else {
+    if(full) why='Bateria este la SoC maxim și așteaptă un preț suficient de mare pentru descărcare.';
+    else if(empty) why='Bateria este la SoC minim și așteaptă un preț suficient de mic pentru încărcare.';
+    else why=`Prețul de ${fmt(r.price,0)} lei/MWh nu justifică nicio acțiune: după tarife și pierderi, nici încărcarea, nici descărcarea nu ar crește profitul zilei.`;
+    if(r.thrCh!==null&&r.thrDis!==null) why+=` Banda de repaus este ${fmt(r.thrCh,0)} – ${fmt(r.thrDis,0)} lei/MWh.`;
+  }
+  $('lWhy').textContent=why;
+  $('socFill').style.height=socA+'%';
+  $('limMax').style.bottom=(p.socMax*100)+'%'; $('limMin').style.bottom=(p.socMin*100)+'%';
+  $('socPct').textContent=fmt(socA,1)+' %';
+  $('flowTxt').textContent=r.d>0?`${fmt(r.pCh,1)} MW →`:r.d<0?`← ${fmt(r.pDis,1)} MW`:'0 MW';
+  $('flowArrow').className='arrow'+(r.d>0?' on-ch':r.d<0?' on-dis':''); $('flowArrow2').className=$('flowArrow').className;
+  $('cumTxt').textContent=`SoC ${fmt(socB,1)} % → ${fmt(socA,1)} % · ${fmt(r.Eafter,1)} MWh stocați · pierderi în interval ${fmt(r.lossC+r.lossD,2)} MWh`;
+  document.querySelectorAll('#iv tr.cur').forEach(e=>e.classList.remove('cur'));
+  const tr=document.querySelector(`#iv tr[data-i="${r.t}"]`); if(tr) tr.classList.add('cur');
+  if(cPrice) cPrice.draw(); if(cPower) cPower.draw();
+}
+
+function togglePlay(){
+  if(state.playing){ clearInterval(state.playing); state.playing=null; $('play').textContent='▶ Rulează'; return; }
+  const T=state.res.rows.length; if(state.cursor>=T-1) state.cursor=0;
+  $('play').textContent='⏸ Pauză'; state.userMoved=true;
+  const tick=()=>{ state.cursor++; if(state.cursor>=T){ state.cursor=T-1; togglePlay(); return; } $('cursor').value=state.cursor; renderLive(); const tr=document.querySelector('#iv tr.cur'); if(tr){const w=tr.closest('.tablewrap'); w.scrollTop=tr.offsetTop-w.clientHeight/2;} };
+  state.playing=setInterval(tick,+$('speed').value);
+}
+$('play').addEventListener('click',togglePlay);
+$('speed').addEventListener('change',()=>{ if(state.playing){ togglePlay(); togglePlay(); } });
+$('cursor').addEventListener('input',e=>{state.cursor=+e.target.value; state.userMoved=true; renderLive();});
+
+$('scen').addEventListener('change',e=>{ state.scen=e.target.value; if(state.scen==='custom'&&!state.custom){ $('pasteBox').open=true; $('pasteMsg').className='msg'; $('pasteMsg').textContent='Lipiți prețurile și apăsați „Folosește prețurile”. Până atunci se afișează scenariul de primăvară.'; } state.userMoved=false; schedule(); });
+$('reseed').addEventListener('click',()=>{ state.seed=(state.seed*1103515245+12345)>>>0; if(state.scen==='custom'){state.scen='spring'; $('scen').value='spring';} state.userMoved=false; schedule(); });
+$('applyPaste').addEventListener('click',()=>{
+  const vals=parsePrices($('paste').value), m=$('pasteMsg');
+  if(vals.length<4){ m.className='msg err'; m.textContent=`Am găsit doar ${vals.length} valori numerice. Lipiți cel puțin o zi de prețuri, câte unul pe rând.`; return; }
+  if(vals.length>96*7){ m.className='msg err'; m.textContent=`Am găsit ${vals.length} valori. Simulatorul acceptă cel mult 7 zile (672 intervale).`; return; }
+  const fx=parseFloat($('fx').value)||1, eur=$('cur').value==='eur';
+  state.custom=vals.map(v=>Math.round((eur?v*fx:v)*100)/100);
+  state.scen='custom'; $('scen').value='custom'; state.userMoved=false;
+  m.className='msg ok'; m.textContent=`Am încărcat ${vals.length} prețuri${eur?' convertite din EUR':''}`+(vals.length%96?` (atenție: ${vals.length} nu este multiplu de 96)`:` (${vals.length/96} ${vals.length===96?'zi':'zile'})`)+'.';
+  schedule();
+});
+document.querySelectorAll('aside input, aside select').forEach(el=>{ if(['paste','cur','fx','scen'].includes(el.id)) return; el.addEventListener('input',schedule); el.addEventListener('change',schedule); });
+$('beIn').addEventListener('input',()=>state.res&&renderBE());
+
+$('copyCsv').addEventListener('click',()=>{
+  const rows=state.res.rows, cap=state.p.cap, f=(v,d)=>v.toFixed(d).replace('.',',');
+  const lines=['Interval;Pret lei/MWh;Actiune;MW (+inj/-extr);MWh retea;SoC %;Cost/venit energie lei;Tarife lei;Net lei;Cumulat lei'];
+  for(const r of rows) lines.push([span(r.t),f(r.price,2),r.d>0?'Incarcare':r.d<0?'Descarcare':'Repaus',f(r.d>0?-r.pCh:r.pDis,2),f(r.d>0?-r.gIn:r.gOut,3),f(r.Eafter/cap*100,2),f(r.revenue-r.energyCost,2),f(-(r.tarW+r.tarI+r.auxTar),2),f(r.net,2),f(r.cum,2)].join(';'));
+  const txt=lines.join('\n'), msg=$('copyMsg');
+  const fallback=()=>{ const ta=$('csvFallback'); ta.hidden=false; ta.value=txt; ta.focus(); ta.select(); msg.className='msg'; msg.textContent='Copierea automată nu e permisă aici. Textul este selectat mai jos: apăsați Ctrl+C.'; };
+  try{ navigator.clipboard.writeText(txt).then(()=>{msg.className='msg ok'; msg.textContent=`Copiat: ${rows.length} rânduri, separator «;».`;}).catch(fallback); }catch(e){ fallback(); }
+});
+
+const mq=window.matchMedia('(prefers-color-scheme: dark)');
+const rethemes=()=>{ if(state.res){ renderCharts(); } };
+mq.addEventListener?.('change',rethemes);
+new MutationObserver(rethemes).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+run();
+</script>
+
+</body>
+</html>
